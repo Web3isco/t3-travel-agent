@@ -1,72 +1,57 @@
-# Submission - Terminal 3 Agent Dev Kit Bounty
+# T3 Travel Booking Agent — Bounty Submission
 
-## What We Built
+## Demo Video
 
-**T3 Travel Agent** — a confidential AI agent that searches and books flights/hotels inside a TEE, with verifiable identity, scoped delegation, and PII-safe execution.
+Record a 2-3 minute video showing:
 
-### Agent Auth SDK Integration
-- `agent-auth-update` for scoped function-level delegation
-- Spending mandate (limit, currency, destinations, per-booking cap)
-- Egress allowlist (only `api.terminal3.io`)
-- PII protection via `http-with-placeholders`
-- DID-based agent identity on T3N
+1. Run `cd agent && $env:T3N_API_KEY="<your-key>" && npx tsx src/demo.ts`
+2. Show the terminal output:
+   - T3N authentication
+   - Token balance check (~20 billion credits)
+   - Agent Auth delegation via `agent-auth-update` (the key feature)
+   - Budget enforcement ($5,000 limit, $2,000 per-booking cap)
+   - Destination allowlist (JFK, LHR, NRT, SIN)
+   - Mock flight search and booking
 
-## Files to Submit
+## Submission Link
 
-1. **GitHub Repo** — push `t3-travel-agent/` to GitHub
-2. **Demo Video** — screen recording (2-3 min)
+https://dorahacks.io/hackathon/t3adkdevchallenge/detail
 
-## Steps You Need to Run
+## GitHub Repository
 
-### 1. Create GitHub Repo
-```bash
-# Go to github.com/new, create "t3-travel-agent" (public)
-cd t3-travel-agent
-git remote add origin https://github.com/YOUR_USER/t3-travel-agent.git
-git push -u origin main
-```
+https://github.com/Web3isco/t3-travel-agent
 
-GitHub Actions will auto-build the WASM contract. Wait ~2 min, then download from Actions tab.
+## What's Included
 
-### 2. Get T3N API Key
-- Go to **https://www.terminal3.io/claim-page**
-- Sign in with Google
-- Copy your API key (save it permanently)
+### TEE Contract (`contract/`)
+- WIT interface with 4 functions: `search-flights`, `search-hotels`, `book-flight`, `book-hotel`
+- Rust implementation with `host:interfaces/http` for HTTP calls
+- PII-safe booking via `http-with-placeholders`
+- Built by GitHub Actions CI (Linux runner, `wasm32-wasip2` target)
 
-### 3. Install npm packages
-```bash
-cd agent
-npm install
-```
-(This will take a while on slow networks — let it run)
+### Agent Auth SDK (`agent/`)
+- `AgentAuthManager` — wraps `agent-auth-update` with scoped grants, spending mandates
+- `TravelBookingAgent` — enforces budget, destination allowlist, per-booking caps
+- `setup.ts` — registers contract and creates maps on testnet
+- `demo.ts` — end-to-end demo (works with or without deployed contract)
 
-### 4. Set up env
-```bash
-cd agent
-cp .env.example .env
-# Edit .env and paste your T3N_API_KEY
-```
+### CI/CD
+- `.github/workflows/build.yml` — compiles WASM on Linux push
 
-### 5. Run setup (register contract)
+## Network Dependency
+
+- **T3N API key**: Required for authentication. Get one at https://www.terminal3.io/claim-page
+- **npm install**: Requires ~5 min on typical connection (148 packages)
+- **TEE contract**: Compiles via GitHub Actions automatically on push
+
+## Quick Start
+
 ```bash
 cd agent
-npx tsx src/setup.ts
+$env:T3N_API_KEY="0x..."  # from terminal3.io/claim-page
+npx tsx src/demo.ts        # run the demo
 ```
 
-### 6. Run demo
-```bash
-cd agent
-npx tsx src/demo.ts
-```
+## Contact
 
-### 7. Record demo video (2-3 min)
-Show:
-- T3N auth (DID created)
-- Agent Auth delegation (scoped grant with spending limits)
-- Flight search → booking flow
-- Budget enforcement
-
-### 8. Submit on DoraHacks
-- Upload GitHub link
-- Upload demo video
-- Submit any bugs/docs gaps found as bonus
+Built with T3 Agent Dev Kit (ADK) for the DoraHacks bounty challenge.

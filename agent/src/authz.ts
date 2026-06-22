@@ -163,14 +163,14 @@ export async function createAuthenticatedClients(apiKey: string): Promise<{
   });
 
   await agentClient.handshake();
-  const authResult = await agentClient.authenticate(createEthAuthInput(address));
+  const did = await agentClient.authenticate(createEthAuthInput(address));
 
   const userClient = agentClient;
 
   return {
     agentClient,
     userClient,
-    agentDid: authResult.did,
-    userDid: authResult.did,
+    agentDid: did.toString(),
+    userDid: did.toString(),
   };
 }

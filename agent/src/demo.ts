@@ -5,6 +5,7 @@ import {
   metamask_sign,
   T3nClient,
   createEthAuthInput,
+  getNodeUrl,
 } from "@terminal3/t3n-sdk";
 import { AgentAuthManager, Mandate } from "./authz.js";
 import { TravelBookingAgent } from "./travel-agent.js";
@@ -30,41 +31,31 @@ async function main() {
     handlers: { EthSign: metamask_sign(address, undefined, API_KEY) },
   });
   await client.handshake();
-  const authResult = await client.authenticate(createEthAuthInput(address));
-  const userDid = authResult.did;
+  const did = await client.authenticate(createEthAuthInput(address));
+  const userDid = did.toString();
   console.log(`   Authenticated as: ${userDid}`);
 
-  // 2. Claim tenant identity
-  console.log("\n2. Claiming tenant identity...");
-  const tenant = client.tenant!;
-  const tenantInfo = await tenant.claim?.();
-  const tenantDid = tenantInfo?.did || userDid;
+  // 2. Get tenant info
+  console.log("\n2. Getting tenant info...");
+  const nodeUrl = getNodeUrl();
+  const { TenantClient } = await import("@terminal3/t3n-sdk");
+  const tenantClient = new TenantClient({ t3n: client, tenantDid: userDid, baseUrl: nodeUrl });
+  const tenantInfo = await tenantClient.tenant.me();
+  const tenantDid = (tenantInfo as Record<string, unknown>).tenant as string || userDid;
   console.log(`   Tenant DID: ${tenantDid}`);
 
   // 3. Check token balance
   console.log("\n3. Checking token balance...");
-  const { balance } = await client.getUsage();
-  console.log(`   Credits available: ${balance.available}`);
-
-  // 4. Create secrets map for API key
-  console.log("\n4. Setting up secrets map...");
   try {
-    await tenant.maps!.create({
-      tail: "secrets",
-      visibility: "private",
-      writers: { only: [0] },
-      readers: { only: [0] },
-    });
-    console.log("   Secrets map created");
-  } catch (e) {
-    console.log("   Secrets map already exists");
+    const usage = await client.getUsage();
+    console.log(`   Credits available: ${usage.balance.available}`);
+  } catch {
+    console.log("   Could not fetch balance");
   }
 
-  // 5. Set up Agent Auth delegation
-  console.log("\n5. Setting up Agent Auth delegation...");
+  // 4. Set up Agent Auth delegation (NO TENANT CONTRACT NEEDED)
+  console.log("\n4. Setting up Agent Auth delegation...");
   const authManager = new AgentAuthManager(client, userDid);
-  const tenantId = tenantDid.slice("did:t3n:".length);
-  const scriptName = `z:${tenantId}:travel-contracts`;
 
   const mandate: Mandate = {
     spendingLimit: 5000,
@@ -81,8 +72,9 @@ async function main() {
   );
   console.log(`   Agent auth grant: ${JSON.stringify(grantResult).slice(0, 100)}...`);
 
-  // 6. Create the travel agent
-  console.log("\n6. Initializing travel agent...");
+  // 5. Create the travel agent (client-side only, no TEE contract needed)
+  console.log("\n5. Initializing travel agent...");
+  const scriptName = `z:${tenantDid.replace("did:t3n:", "")}:travel-contracts`;
   const travelAgent = new TravelBookingAgent(
     client,
     userDid,
@@ -93,8 +85,8 @@ async function main() {
   );
   console.log(`   Budget: $${travelAgent.remainingBudget}`);
 
-  // 7. Search flights (Demo: mock API or offline mode)
-  console.log("\n7. Demo: Planning trip from New York (JFK) to London (LHR)...");
+  // 6. Demo trip planning (mocked, no contract call)
+  console.log("\n6. Demo: Planning trip from New York (JFK) to London (LHR)...");
   try {
     const tripPlan = await travelAgent.planTrip({
       origin: "JFK",
@@ -118,9 +110,8 @@ async function main() {
 
     console.log(`\n   Total trip cost: $${tripPlan.total_cost}`);
 
-    // 8. Attempt booking (shows Agent Auth scope enforcement)
     if (tripPlan.flights.length > 0) {
-      console.log("\n8. Attempting to book flight (within mandate)...");
+      console.log("\n7. Attempting to book flight (within mandate)...");
       try {
         const booking = await travelAgent.bookFlight(
           tripPlan.flights[0].id,
@@ -130,18 +121,17 @@ async function main() {
         console.log(`   Booking result: ${JSON.stringify(booking)}`);
         console.log(`   Remaining budget: $${travelAgent.remainingBudget}`);
       } catch (e) {
-        console.log(`   Booking failed (expected in offline mode): ${e}`);
+        console.log(`   Booking failed (expected offline): ${e}`);
       }
     }
   } catch (e) {
-    console.log(`\n   Search skipped (expected offline): ${e}`);
-    console.log("   Run with a valid T3N API key for live demo.");
+    console.log(`\n   Search failed: ${e}`);
   }
 
-  // 9. Show Agent Auth summary
+  // 7. Show Agent Auth summary
   console.log("\n=== Agent Auth SDK Integration Summary ===");
   console.log("  ✅ Agent DID authenticated via T3N");
-  console.log("  ✅ Tenant identity claimed");
+  console.log("  ✅ Tenant identity confirmed");
   console.log("  ✅ Scoped delegation grant created via agent-auth-update");
   console.log("  ✅ Spending mandate enforced client-side");
   console.log("  ✅ Destination allowlist enforced");
