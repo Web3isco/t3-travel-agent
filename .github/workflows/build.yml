@@ -1,0 +1,38 @@
+name: Build WASM Contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip2
+
+      - name: Build TEE contract
+        run: |
+          cd contract
+          cargo build --release --target wasm32-wasip2
+          ls -lh target/wasm32-wasip2/release/*.wasm
+
+      - name: Run tests
+        run: |
+          cd contract
+          cargo test
+
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tee-contract
+          path: contract/target/wasm32-wasip2/release/z_travel_agent.wasm

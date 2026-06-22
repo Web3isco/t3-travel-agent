@@ -1,0 +1,24 @@
+package z:travel-agent@0.1.0;
+
+world travel-agent {
+    import host:tenant/tenant-context@1.0.0;
+    import host:interfaces/logging@2.1.0;
+    import host:interfaces/kv-store@2.1.0;
+    import host:interfaces/http@2.1.0;
+    import host:interfaces/http-with-placeholders@2.1.0;
+
+    export contracts;
+}
+
+interface contracts {
+    record generic-input {
+        input:        option<list<u8>>,
+        user-profile: option<list<u8>>,
+        context:      option<list<u8>>,
+    }
+
+    search-flights: func(req: generic-input) -> result<list<u8>, string>;
+    search-hotels:  func(req: generic-input) -> result<list<u8>, string>;
+    book-flight:    func(req: generic-input) -> result<list<u8>, string>;
+    book-hotel:     func(req: generic-input) -> result<list<u8>, string>;
+}

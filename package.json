@@ -1,0 +1,15 @@
+{
+  "name": "t3-travel-agent-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Terminal 3 Travel Agent - Hackathon Submission",
+  "scripts": {
+    "build:contract": "cd contract && cargo build --release --target wasm32-wasip2",
+    "build:agent": "cd agent && npm install && npx tsc",
+    "setup": "cd agent && npx tsx src/setup.ts",
+    "demo": "cd agent && npx tsx src/demo.ts",
+    "start": "cd agent && npx tsx src/travel-agent.ts",
+    "test:contract": "cd contract && cargo test",
+    "all": "npm run build:contract && npm run build:agent"
+  }
+}

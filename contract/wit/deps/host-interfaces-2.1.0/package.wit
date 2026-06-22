@@ -1,0 +1,314 @@
+package host:interfaces@2.1.0;
+
+interface http {
+  enum verb { get, post, put, patch, delete }
+
+  record request {
+    method: verb,
+    url: string,
+    headers: option<list<tuple<string, string>>>,
+    payload: option<list<u8>>
+  }
+
+  record response {
+    code: u16,
+    payload: list<u8>
+  }
+
+  call: func(request: request) -> result<response, string>;
+}
+
+interface http-with-placeholders {
+  enum verb { get, post, put, patch, delete }
+
+  record request {
+    method: verb,
+    url: string,
+    headers: option<list<tuple<string, string>>>,
+    payload: option<list<u8>>
+  }
+
+  record response {
+    code: u16,
+    payload: list<u8>
+  }
+
+  variant http-error {
+    egress-denied(string),
+    placeholder-denied(string),
+    placeholder-unknown(string),
+    placeholder-no-user-context,
+    upstream-error(string),
+  }
+
+  call: func(request: request) -> result<response, http-error>;
+}
+
+interface logging {
+  info: func(message: string) -> result<_, string>;
+  debug: func(message: string) -> result<_, string>;
+  error: func(message: string) -> result<_, string>;
+}
+
+interface user-profile {
+  upsert: func(user-did: list<u8>, user-profile: list<u8>) -> result<string, string>;
+}
+
+interface did-registry {
+  link-authenticator: func(user-did: list<u8>, authenticator-str: string) -> result<_, string>;
+}
+
+interface agent-registry {
+  register-agent: func(user-did: list<u8>, agent-uri: string, owner-eth-address: list<u8>) -> result<string, string>;
+}
+
+interface agent-auth {
+  update-authorisations: func(user-did: list<u8>, payload: list<u8>) -> result<string, string>;
+}
+
+interface signing {
+  sign: func(message: list<u8>) -> result<list<u8>, sign-error>;
+
+  record sign-sd-jwt-vc-request {
+    payload: string,
+    disclosable-claims: list<string>,
+    holder-did: string,
+    issuer-provider-id: option<string>,
+    bind-to-holder: bool,
+  }
+
+  sign-sd-jwt-vc: func(request: sign-sd-jwt-vc-request) -> result<string, sign-sd-jwt-vc-error>;
+
+  sign-as-user: func(message: list<u8>) -> result<list<u8>, sign-as-user-error>;
+
+  sign-with-wallet: func(wallet-address: list<u8>, message: list<u8>)
+    -> result<list<u8>, sign-as-user-error>;
+
+  get-user-eth-address: func() -> result<option<list<u8>>, sign-as-user-error>;
+
+  list-user-wallets: func() -> result<user-wallets, sign-as-user-error>;
+
+  record user-wallets {
+    primary: list<u8>,
+    secondary: list<list<u8>>,
+  }
+
+  has-user-wallet: func(did: list<u8>) -> result<bool, sign-as-user-error>;
+
+  variant sign-error {
+    no-signing-key,
+    signing-failed(string),
+    pubkey-format,
+    encoding-failed(string),
+  }
+
+  variant sign-sd-jwt-vc-error {
+    unknown-issuer(string),
+    invalid-payload(string),
+    holder-binding-invalid(string),
+    conceal-claims-failed(string),
+    sign-failed(string),
+    current-time-failed(string),
+  }
+
+  variant sign-as-user-error {
+    no-execution-context,
+    contract-not-allowlisted(string),
+    no-wallet,
+    kv-unavailable(string),
+    signing-failed(string),
+    not-authorized,
+    malformed-address,
+  }
+}
+
+interface authorisation {
+  variant auth-error {
+    denied-unauthorized(string),
+    denied-no-allowlist,
+    denied-scope(string),
+    denied-revoked,
+  }
+
+  is-authorized: func(host: list<string>) -> bool;
+  check-authorized: func(host: list<string>) -> result<_, auth-error>;
+}
+
+interface profile-ref {
+  variant ref-error {
+    unknown-scope(string),
+    scope-denied(string),
+    unknown-handle(string),
+    profile-unavailable,
+  }
+
+  record handle-meta {
+    handle: string,
+    metadata: list<u8>,
+  }
+
+  list-handles: func(scope: string, vc-id: string) -> result<list<handle-meta>, ref-error>;
+}
+
+interface clock {
+  variant clock-error { no-tx-context, }
+  now-ms: func() -> result<u64, clock-error>;
+}
+
+interface contracts-call {
+  record invoke-request {
+    target-contract: string,
+    function-name: string,
+    input: list<u8>,
+  }
+
+  variant invoke-error {
+    not-allowlisted(string),
+    no-execution-context,
+    target-unknown(string),
+    depth-exceeded,
+    reentrant(string),
+    inner-failed(string),
+    inner-trapped(string),
+    encoding-failed(string),
+  }
+
+  invoke: func(req: invoke-request) -> result<list<u8>, invoke-error>;
+}
+
+interface audit { query: func(request: list<u8>) -> result<list<u8>, string>; }
+
+interface analytics {
+  snapshot: func() -> result<list<u8>, string>;
+  refresh: func() -> result<list<u8>, string>;
+  range: func(request: list<u8>) -> result<list<u8>, string>;
+}
+
+interface consensus-trigger {
+  indexing-backfill: func(request: list<u8>) -> result<list<u8>, string>;
+  indexing-activate: func(request: list<u8>) -> result<list<u8>, string>;
+  dkg-trigger: func(request: list<u8>) -> result<list<u8>, string>;
+}
+
+interface provider-config {
+  fetch: func(provider-id: string) -> result<list<u8>, string>;
+}
+
+interface otp {
+  enum otp-channel { email, sms, }
+
+  record verify-request {
+    user-did: list<u8>,
+    profile: list<u8>,
+    channel: otp-channel,
+    new-contact: option<string>,
+    current-contact: option<string>,
+    otp-code: option<string>,
+    authenticated-contact: option<string>,
+    is-mock-mode: bool,
+    otp-timeout-in-sec: option<u32>,
+    skip-otp: bool,
+  }
+
+  enum otp-status { otp-pending, otp-failed, otp-expired, }
+
+  record verify-response {
+    otp-status: option<otp-status>,
+    profile: option<list<u8>>,
+    expires-at-sec: option<u64>,
+    is-new-profile: option<bool>,
+  }
+
+  verify: func(request: verify-request) -> result<verify-response, string>;
+}
+
+interface user-removal {
+  remove-user: func(user-did: list<u8>) -> result<string, string>;
+}
+
+interface vp {
+  record sign-vp-request {
+    unsigned-sd-jwt: string,
+    nonce: string,
+    audience: string,
+  }
+
+  sign: func(request: sign-vp-request) -> result<string, string>;
+
+  record submit-vp-request {
+    response-uri: string,
+    vp-token: string,
+    state: option<string>,
+    response-mode: option<string>,
+    client-metadata-jwks: option<string>,
+  }
+
+  record submit-vp-response { code: u16, payload: list<u8>, }
+
+  submit: func(request: submit-vp-request) -> result<submit-vp-response, string>;
+
+  record verify-vp-request {
+    vp-token: string,
+    audience: string,
+    nonce: string,
+    issuer: string,
+  }
+
+  variant verify-vp-error {
+    signature-invalid, audience-mismatch, nonce-mismatch,
+    expired, not-yet-valid, issuer-untrusted, malformed(string),
+  }
+
+  record verify-vp-response {
+    holder-did: string,
+    claims: list<u8>,
+    issued-at: u64,
+    expires-at: option<u64>,
+  }
+
+  verify: func(request: verify-vp-request) -> result<verify-vp-response, verify-vp-error>;
+}
+
+interface kv-store {
+    get: func(map-name: string, key: list<u8>) -> result<option<list<u8>>, string>;
+    put: func(map-name: string, key: list<u8>, value: list<u8>) -> result<_, string>;
+    delete: func(map-name: string, key: list<u8>) -> result<bool, string>;
+    set-claims-digest: func(digest: list<u8>) -> result<_, string>;
+    scan: func(map-name: string, start: list<u8>, end: list<u8>, limit: u32) -> result<list<tuple<list<u8>, list<u8>>>, string>;
+}
+
+interface token {
+  record u128-le { lo: u64, hi: u64, }
+  record balance-row { available: u128-le, reserved: u128-le, }
+
+  variant balance-error { not-authorised, account-not-found, }
+
+  get-balance: func() -> result<balance-row, balance-error>;
+  get-account-balance: func(account: list<u8>) -> result<balance-row, balance-error>;
+}
+
+interface state {
+  get-state: func(key: string) -> result<option<list<u8>>, string>;
+  put-state: func(key: string, value: list<u8>) -> result<_, string>;
+  delete-state: func(key: string) -> result<_, string>;
+}
+
+world interfaces {
+  export http;
+  export http-with-placeholders;
+  export logging;
+  export signing;
+  export user-profile;
+  export did-registry;
+  export agent-registry;
+  export agent-auth;
+  export authorisation;
+  export provider-config;
+  export otp;
+  export user-removal;
+  export vp;
+  export kv-store;
+  export token;
+  export contracts-call;
+  export state;
+}
